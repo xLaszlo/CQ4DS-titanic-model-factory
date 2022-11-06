@@ -8,5 +8,5 @@ class ModelSaver:
         self.result_filename = result_filename
 
     def save_model(self, model, result):
-        pickle.dump(model, open(self.filename, 'wb'))
+        pickle.dump(model, open(self.model_filename, 'wb'))
         pickle.dump(result, open(self.result_filename, 'wb'))
