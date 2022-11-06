@@ -8,6 +8,8 @@ from savers.test_model_saver import TestModelSaver
 from main import RARE_TITLES
 from titanic_model import TitanicModel
 from sklearn.linear_model import LogisticRegression
+from titanic_model import CategoricalFeature
+from titanic_model import NumericalFeature
 
 
 def test_main(data_directory:str):
@@ -25,7 +27,22 @@ def test_main(data_directory:str):
             rare_titles=RARE_TITLES
         ),
         model=TitanicModel(
-            n_neighbors=5,
+            targets_extractor=lambda passenger: passenger.is_survived,
+            features=[
+                CategoricalFeature(extractor=lambda passenger: passenger.embarked),
+                CategoricalFeature(extractor=lambda passenger: passenger.sex),
+                CategoricalFeature(extractor=lambda passenger: passenger.pclass),
+                CategoricalFeature(extractor=lambda passenger: passenger.title),
+                CategoricalFeature(extractor=lambda passenger: passenger.is_alone),
+                NumericalFeature(
+                    extractor=lambda passenger: [passenger.age, passenger.fare],
+                    n_neighbors=5
+                ),
+                NumericalFeature(
+                    extractor=lambda passenger: [passenger.family_size],
+                    n_neighbors=5
+                )
+            ],
             predictor=LogisticRegression(random_state=0)
         ),
         model_saver=TestModelSaver(data_directory=data_directory)
