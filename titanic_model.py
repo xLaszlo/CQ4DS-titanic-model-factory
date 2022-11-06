@@ -3,9 +3,10 @@ import pickle
 import typer
 import numpy as np
 import pandas as pd
-from pydantic import BaseModel
-from collections import Counter
-from sqlalchemy import create_engine
+
+from loaders.passenger_loader import PassengerLoader
+from loaders.test_loader import TestLoader
+from loaders.sql_loader import SqlLoader
 
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
@@ -33,19 +34,6 @@ RARE_TITLES = {
 }
 
 
-class Passenger(BaseModel):
-    pid: int
-    pclass: int
-    sex: str
-    age: float
-    family_size: int
-    fare: float
-    embarked: str
-    is_alone: int
-    title: str
-    is_survived: int
-
-
 def do_test(filename, data):
     if not os.path.isfile(filename):
         pickle.dump(data, open(filename, 'wb'))
@@ -66,76 +54,6 @@ def do_pandas_test(filename, data):
         print(f'{filename} pandas test passed')
     except AssertionError as ex:
         print(f'{filename} pandas test failed {ex}')
-
-
-class SqlLoader:
-
-    def __init__(self, connectionString):
-        engine = create_engine(connectionString)
-        self.connection = engine.connect()
-
-    def get_passengers(self):
-        query = """
-            SELECT
-                tbl_passengers.pid,
-                tbl_passengers.pclass,
-                tbl_passengers.sex,
-                tbl_passengers.age,
-                tbl_passengers.parch,
-                tbl_passengers.sibsp,
-                tbl_passengers.fare,
-                tbl_passengers.embarked,
-                tbl_passengers.name,
-                tbl_targets.is_survived
-            FROM
-                tbl_passengers
-            JOIN
-                tbl_targets
-            ON
-                tbl_passengers.pid=tbl_targets.pid
-        """
-        return pd.read_sql(query, con=self.connection)
-
-
-class TestLoader:
-
-    def __init__(self, passengers_filename, realLoader):
-        self.passengers_filename = passengers_filename
-        self.realLoader = realLoader
-        if not os.path.isfile(self.passengers_filename):
-            df = self.realLoader.get_passengers()
-            df.to_pickle(self.passengers_filename)
-
-    def get_passengers(self):
-        return pd.read_pickle(self.passengers_filename)
-
-class PassengerLoader:
-
-    def __init__(self, loader, rare_titles=None):
-        self.loader = loader
-        self.rare_titles = rare_titles
-
-    def get_passengers(self):
-        passengers = []
-        for data in self.loader.get_passengers().itertuples():
-            # parch = Parents/Children, sibsp = Siblings/Spouses
-            family_size = int(data.parch + data.sibsp)
-            # Allen, Miss. Elisabeth Walton
-            title = data.name.split(',')[1].split('.')[0].strip()
-            passenger = Passenger(
-                pid=int(data.pid),
-                pclass=int(data.pclass),
-                sex=str(data.sex),
-                age=float(data.age),
-                family_size=family_size,
-                fare=float(data.fare),
-                embarked=str(data.embarked),
-                is_alone= 1 if family_size==1 else 0,
-                title='rare' if title in self.rare_titles else title,
-                is_survived=int(data.is_survived)
-            )
-            passengers.append(passenger)
-        return passengers
 
 
 class ModelSaver:
@@ -255,8 +173,7 @@ def main(data_directory:str):
         model_saver=ModelSaver(
             model_filename=f'{data_directory}/real_model.pkl',
             result_filename=f'{data_directory}/real_result.pkl'
-        ),
-        data_directory=data_directory
+        )
     )
     titanicModelCreator.run()
 
@@ -279,8 +196,7 @@ def test_main(data_directory:str):
             n_neighbors=5,
             predictor=LogisticRegression(random_state=0)
         ),
-        model_saver=TestModelSaver(data_directory=data_directory),
-        data_directory=data_directory
+        model_saver=TestModelSaver(data_directory=data_directory)
     )
     titanicModelCreator.run()
 
